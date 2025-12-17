@@ -50,7 +50,7 @@
 使用 SSH 连接到你的路由器，运行以下命令：
 
 ```bash
-wget -O /tmp/cloudflared.sh https://raw.githubusercontent.com/hxzlplp7/openwrt-one-click-cloudflared/main/cloudflared_install.sh && chmod +x /tmp/cloudflared.sh && sh /tmp/cloudflared.sh
+wget -O /tmp/cfd.sh https://raw.githubusercontent.com/hxzlplp7/openwrt-one-click-cloudflared/main/cloudflared_install.sh && sh /tmp/cfd.sh
 ```
 
 ### 第三步：配置并启动
@@ -66,7 +66,7 @@ wget -O /tmp/cloudflared.sh https://raw.githubusercontent.com/hxzlplp7/openwrt-o
 安装成功后，可以直接在终端输入以下命令唤起管理菜单：
 
 ```bash
-cloudflared-menu
+cfd
 ```
 
 ## 📖 使用流程图
@@ -94,34 +94,34 @@ cloudflared-menu
 
 ```bash
 # 安装
-cloudflared-menu install
+cfd install
 
 # 配置 Token
-cloudflared-menu token
+cfd token
 
 # 显示获取 Token 的指南
-cloudflared-menu guide
+cfd guide
 
 # 启动服务
-cloudflared-menu start
+cfd start
 
 # 停止服务
-cloudflared-menu stop
+cfd stop
 
 # 重启服务
-cloudflared-menu restart
+cfd restart
 
 # 查看状态
-cloudflared-menu status
+cfd status
 
 # 查看日志
-cloudflared-menu logs
+cfd logs
 
 # 卸载
-cloudflared-menu uninstall
+cfd uninstall
 
 # 显示帮助
-cloudflared-menu help
+cfd help
 ```
 
 ## 📁 文件路径
@@ -132,7 +132,7 @@ cloudflared-menu help
 | 配置目录 | `/etc/cloudflared/` |
 | Token 文件 | `/etc/cloudflared/token` |
 | 启动脚本 | `/etc/init.d/cloudflared` |
-| 快捷命令 | `/usr/bin/cloudflared-menu` |
+| 快捷命令 | `/usr/bin/cfd` |
 
 ## ❓ 常见问题
 
@@ -180,7 +180,7 @@ A: 如果无法连接 GitHub，可以：
 
 ```bash
 # 通过脚本查看
-cloudflared-menu logs
+cfd logs
 
 # 或直接使用 logread
 logread | grep cloudflared

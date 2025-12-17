@@ -218,7 +218,7 @@ start_service() {
     token=$(get_token)
     
     if [ -z "$token" ]; then
-        echo "错误: Token 未配置。请先运行 cloudflared-menu 配置 Token。"
+        echo "错误: Token 未配置。请先运行 cfd 配置 Token。"
         return 1
     fi
 
@@ -242,7 +242,7 @@ INITEOF
 # 创建快捷命令
 create_shortcut() {
     # 创建一个小的启动脚本
-    cat > /usr/bin/cloudflared-menu << 'SHORTCUTEOF'
+    cat > /usr/bin/cfd << 'SHORTCUTEOF'
 #!/bin/sh
 # Cloudflared 管理菜单快捷方式
 SCRIPT_URL="https://raw.githubusercontent.com/hxzlplp7/openwrt-one-click-cloudflared/main/cloudflared_install.sh"
@@ -265,8 +265,8 @@ fi
 sh "$SCRIPT_PATH" "$@"
 SHORTCUTEOF
     
-    chmod +x /usr/bin/cloudflared-menu
-    print_success "快捷命令 'cloudflared-menu' 已创建!"
+    chmod +x /usr/bin/cfd
+    print_success "快捷命令 'cfd' 已创建!"
 }
 
 # 配置 Token
@@ -473,7 +473,7 @@ uninstall_cloudflared() {
     rm -f "$CLOUDFLARED_PATH"
     rm -f "$INIT_SCRIPT"
     rm -rf "$CONFIG_DIR"
-    rm -f /usr/bin/cloudflared-menu
+    rm -f /usr/bin/cfd
     rm -f /etc/rc.d/*cloudflared 2>/dev/null
     
     print_success "卸载完成!"
