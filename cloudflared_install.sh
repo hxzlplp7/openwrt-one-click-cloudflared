@@ -3,6 +3,9 @@
 # =========================================
 # Cloudflared 一键安装管理脚本
 # 适用于 OpenWrt / iStoreOS
+# 
+# 使用远程管理隧道 (Token) 方式
+# Token 需要在 Cloudflare Zero Trust 面板创建
 # =========================================
 
 # 颜色定义
@@ -10,6 +13,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 PLAIN='\033[0m'
 
 # 路径定义
@@ -37,6 +41,10 @@ print_warning() {
 
 print_error() {
     print_color "$RED" "$1"
+}
+
+print_cyan() {
+    print_color "$CYAN" "$1"
 }
 
 # 检查 root 权限
@@ -78,6 +86,44 @@ is_running() {
     pgrep -f "$CLOUDFLARED_PATH" > /dev/null 2>&1
 }
 
+# 显示获取 Token 的说明
+show_token_guide() {
+    printf "\n"
+    print_cyan "============================================"
+    print_cyan "         如何获取 Cloudflare Tunnel Token"
+    print_cyan "============================================"
+    printf "\n"
+    print_info "本脚本使用 Cloudflare 的「远程管理隧道」方式。"
+    print_info "您需要先在 Cloudflare 面板创建隧道，然后获取 Token。"
+    printf "\n"
+    print_warning "步骤如下:"
+    printf "\n"
+    printf "  ${GREEN}1.${PLAIN} 打开 Cloudflare Zero Trust 面板:\n"
+    printf "     ${CYAN}https://one.dash.cloudflare.com/${PLAIN}\n"
+    printf "\n"
+    printf "  ${GREEN}2.${PLAIN} 登录您的 Cloudflare 账户\n"
+    printf "\n"
+    printf "  ${GREEN}3.${PLAIN} 在左侧菜单找到 ${YELLOW}Networks${PLAIN} → ${YELLOW}Tunnels${PLAIN}\n"
+    printf "\n"
+    printf "  ${GREEN}4.${PLAIN} 点击 ${YELLOW}Create a tunnel${PLAIN} (创建隧道)\n"
+    printf "\n"
+    printf "  ${GREEN}5.${PLAIN} 选择 ${YELLOW}Cloudflared${PLAIN} 作为连接器类型\n"
+    printf "\n"
+    printf "  ${GREEN}6.${PLAIN} 给隧道起一个名字 (例如: openwrt-tunnel)\n"
+    printf "\n"
+    printf "  ${GREEN}7.${PLAIN} 在 \"Install and run a connector\" 页面，\n"
+    printf "     找到类似这样的命令:\n"
+    printf "     ${CYAN}cloudflared tunnel run --token eyJhIjoi...${PLAIN}\n"
+    printf "\n"
+    printf "  ${GREEN}8.${PLAIN} 复制 ${YELLOW}--token${PLAIN} 后面的那一长串字符\n"
+    printf "     (以 eyJ 开头的 Base64 编码字符串)\n"
+    printf "\n"
+    printf "  ${GREEN}9.${PLAIN} 将 Token 粘贴到本脚本中\n"
+    printf "\n"
+    print_cyan "============================================"
+    printf "\n"
+}
+
 # 安装 cloudflared
 install_cloudflared() {
     if is_installed; then
@@ -115,6 +161,7 @@ install_cloudflared() {
         if ! wget -q -O "$CLOUDFLARED_PATH" "$download_url"; then
             print_error "下载失败，请检查网络连接。"
             print_warning "提示: 如果无法连接 GitHub，可手动下载后上传到 $CLOUDFLARED_PATH"
+            print_info "下载地址: $download_url"
             rm -f "$CLOUDFLARED_PATH"
             return 1
         fi
@@ -140,6 +187,9 @@ install_cloudflared() {
     create_shortcut
     
     print_success "安装完成!"
+    printf "\n"
+    print_warning "下一步: 请配置 Token (菜单选项 2)"
+    print_info "如果您还没有 Token，请先在 Cloudflare 面板创建隧道。"
 }
 
 # 创建 init.d 启动脚本
@@ -168,7 +218,7 @@ start_service() {
     token=$(get_token)
     
     if [ -z "$token" ]; then
-        echo "错误: Token 未配置。请先运行管理脚本配置 Token。"
+        echo "错误: Token 未配置。请先运行 cloudflared-menu 配置 Token。"
         return 1
     fi
 
@@ -191,10 +241,7 @@ INITEOF
 
 # 创建快捷命令
 create_shortcut() {
-    local script_path
-    script_path=$(readlink -f "$0" 2>/dev/null || echo "$0")
-    
-    # 创建一个小的启动脚本而不是复制整个脚本
+    # 创建一个小的启动脚本
     cat > /usr/bin/cloudflared-menu << 'SHORTCUTEOF'
 #!/bin/sh
 # Cloudflared 管理菜单快捷方式
@@ -203,7 +250,6 @@ SCRIPT_PATH="/tmp/cloudflared_manager.sh"
 
 # 如果本地有缓存且不超过1天，使用缓存
 if [ -f "$SCRIPT_PATH" ]; then
-    # 检查文件修改时间
     find "$SCRIPT_PATH" -mtime +1 -delete 2>/dev/null
 fi
 
@@ -225,8 +271,23 @@ SHORTCUTEOF
 
 # 配置 Token
 configure_token() {
-    print_warning "请输入您的 Cloudflare Tunnel Token:"
-    print_info "(可在 Cloudflare Zero Trust 面板创建 Tunnel 时获取)"
+    # 显示获取 Token 的指南
+    show_token_guide
+    
+    printf "是否已经获取到 Token? [y/N]: "
+    read -r has_token
+    case "$has_token" in
+        [yY][eE][sS]|[yY])
+            ;;
+        *)
+            print_info "请先按照上述步骤获取 Token，然后再次运行此选项。"
+            return
+            ;;
+    esac
+    
+    printf "\n"
+    print_warning "请粘贴您的 Cloudflare Tunnel Token:"
+    print_info "(以 eyJ 开头的长字符串)"
     printf "> "
     read -r token
     
@@ -235,27 +296,50 @@ configure_token() {
         return 1
     fi
     
+    # 简单验证 Token 格式
+    case "$token" in
+        eyJ*)
+            ;;
+        *)
+            print_warning "警告: Token 通常以 'eyJ' 开头。"
+            printf "确定要使用此 Token 吗? [y/N]: "
+            read -r confirm
+            case "$confirm" in
+                [yY][eE][sS]|[yY])
+                    ;;
+                *)
+                    print_info "已取消。"
+                    return
+                    ;;
+            esac
+            ;;
+    esac
+    
     mkdir -p "$CONFIG_DIR"
     printf "%s" "$token" > "$TOKEN_FILE"
     chmod 600 "$TOKEN_FILE"
-    print_success "Token 已保存。"
+    print_success "Token 已保存!"
+    printf "\n"
+    print_info "现在可以启动服务了 (菜单选项 4)"
 }
 
 # 查看当前 Token
 view_token() {
     if [ -f "$TOKEN_FILE" ]; then
-        print_info "当前 Token:"
+        print_info "当前 Token (已脱敏):"
         local token
         token=$(cat "$TOKEN_FILE")
-        # 只显示前20个和后10个字符
         local len=${#token}
         if [ $len -gt 40 ]; then
             printf "%s...%s\n" "$(echo "$token" | cut -c1-20)" "$(echo "$token" | rev | cut -c1-10 | rev)"
         else
             printf "%s\n" "$token"
         fi
+        printf "\n"
+        print_info "Token 长度: $len 字符"
     else
         print_warning "Token 未配置。"
+        print_info "请使用菜单选项 2 配置 Token。"
     fi
 }
 
@@ -268,6 +352,7 @@ start_service() {
     
     if [ ! -f "$TOKEN_FILE" ]; then
         print_error "Token 未配置，请先配置 Token。"
+        show_token_guide
         return 1
     fi
     
@@ -275,12 +360,15 @@ start_service() {
     /etc/init.d/cloudflared enable
     /etc/init.d/cloudflared start
     
-    sleep 2
+    sleep 3
     if is_running; then
         print_success "Cloudflared 已启动!"
+        printf "\n"
+        print_info "隧道已连接到 Cloudflare。"
+        print_info "请在 Cloudflare Zero Trust 面板配置 Public Hostname 以暴露服务。"
     else
         print_error "启动失败，请检查日志。"
-        print_info "使用 'logread | grep cloudflared' 查看日志"
+        print_info "使用菜单选项 7 查看日志"
     fi
 }
 
@@ -306,7 +394,7 @@ restart_service() {
     print_info "正在重启服务..."
     /etc/init.d/cloudflared restart
     
-    sleep 2
+    sleep 3
     if is_running; then
         print_success "Cloudflared 已重启!"
     else
@@ -330,7 +418,6 @@ show_status() {
     printf "服务状态: "
     if is_running; then
         printf "${GREEN}运行中${PLAIN}\n"
-        # 显示进程信息
         local pid
         pid=$(pgrep -f "$CLOUDFLARED_PATH" | head -1)
         [ -n "$pid" ] && printf "进程 PID: %s\n" "$pid"
@@ -358,12 +445,15 @@ view_logs() {
     print_info "最近的 Cloudflared 日志:"
     print_info "========================"
     logread | grep -i cloudflared | tail -30
+    if [ $? -ne 0 ] || [ -z "$(logread | grep -i cloudflared)" ]; then
+        print_warning "暂无日志或服务未运行。"
+    fi
     print_info "========================"
 }
 
 # 卸载
 uninstall_cloudflared() {
-    print_warning "确定要卸载 Cloudflared 吗? [y/N]: "
+    printf "确定要卸载 Cloudflared 吗? [y/N]: "
     read -r confirm
     case "$confirm" in
         [yY][eE][sS]|[yY])
@@ -384,8 +474,6 @@ uninstall_cloudflared() {
     rm -f "$INIT_SCRIPT"
     rm -rf "$CONFIG_DIR"
     rm -f /usr/bin/cloudflared-menu
-    
-    # 删除开机启动链接
     rm -f /etc/rc.d/*cloudflared 2>/dev/null
     
     print_success "卸载完成!"
@@ -402,16 +490,17 @@ show_menu() {
     printf "\n"
     printf "${BLUE}----------------------------------------${PLAIN}\n"
     printf "${GREEN}1.${PLAIN} 安装 Cloudflared\n"
-    printf "${GREEN}2.${PLAIN} 配置 Token\n"
+    printf "${GREEN}2.${PLAIN} 配置 Token ${YELLOW}(重要)${PLAIN}\n"
     printf "${GREEN}3.${PLAIN} 查看 Token\n"
     printf "${GREEN}4.${PLAIN} 启动服务\n"
     printf "${GREEN}5.${PLAIN} 停止服务\n"
     printf "${GREEN}6.${PLAIN} 重启服务\n"
     printf "${GREEN}7.${PLAIN} 查看日志\n"
-    printf "${GREEN}8.${PLAIN} 卸载\n"
+    printf "${GREEN}8.${PLAIN} 获取 Token 指南\n"
+    printf "${GREEN}9.${PLAIN} 卸载\n"
     printf "${GREEN}0.${PLAIN} 退出\n"
     printf "${BLUE}----------------------------------------${PLAIN}\n"
-    printf "请输入选项 [0-8]: "
+    printf "请输入选项 [0-9]: "
     read -r choice
     
     case "$choice" in
@@ -422,7 +511,8 @@ show_menu() {
         5) stop_service ;;
         6) restart_service ;;
         7) view_logs ;;
-        8) uninstall_cloudflared ;;
+        8) show_token_guide ;;
+        9) uninstall_cloudflared ;;
         0) exit 0 ;;
         *) print_error "无效选项。" ;;
     esac
@@ -430,13 +520,14 @@ show_menu() {
 
 # 显示帮助
 show_help() {
-    printf "Cloudflared 管理脚本\n"
+    printf "Cloudflared 管理脚本 (使用远程管理隧道方式)\n"
     printf "\n"
     printf "用法: %s [命令]\n" "$0"
     printf "\n"
     printf "命令:\n"
     printf "  install    安装 cloudflared\n"
     printf "  token      配置 Token\n"
+    printf "  guide      显示获取 Token 的指南\n"
     printf "  start      启动服务\n"
     printf "  stop       停止服务\n"
     printf "  restart    重启服务\n"
@@ -446,6 +537,9 @@ show_help() {
     printf "  help       显示帮助\n"
     printf "\n"
     printf "不带参数运行将显示交互式菜单。\n"
+    printf "\n"
+    printf "注意: 本脚本使用 Cloudflare 远程管理隧道方式，\n"
+    printf "      需要先在 Cloudflare Zero Trust 面板创建隧道获取 Token。\n"
 }
 
 # 主程序入口
@@ -459,6 +553,9 @@ main() {
                 ;;
             token)
                 configure_token
+                ;;
+            guide)
+                show_token_guide
                 ;;
             start)
                 start_service
